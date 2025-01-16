@@ -114,6 +114,36 @@ function Initialize-NeededConfiguration {
         [System.Environment]::SetEnvironmentVariable('HUB_VERBOSE', $env:HUB_VERBOSE, 'Machine')
     }
 
+    if ($env:SCOOP_CONFIG) {
+        try {
+            $configHome = $env:XDG_CONFIG_HOME, "$env:USERPROFILE\.config" | Select-Object -First 1
+            $configFile = "$configHome\scoop\config.json"
+
+            # 读取和合并配置
+            $originalConfig = "{}"
+            if (Test-Path $configFile) {
+                $originalConfig = Get-Content $configFile -Raw
+            }
+
+            # 解析两个 JSON 字符串为对象
+            $originalObj = $originalConfig | ConvertFrom-Json
+            $newObj = $env:SCOOP_CONFIG | ConvertFrom-Json
+
+            # 将新配置中的属性复制到原始配置中（覆盖或新增）
+            $newObj.PSObject.Properties | ForEach-Object {
+                $originalObj | Add-Member -Type NoteProperty -Name $_.Name -Value $_.Value -Force
+            }
+
+            # 写入合并后的配置到临时文件
+            $originalObj | ConvertTo-Json -Depth 10 | Out-File $configFile -Encoding utf8
+        }
+        catch {
+            Write-Error "Failed to merge and write config: $_"
+            exit 1
+        }
+    }
+
+
     # Log all environment variables
     Write-Log 'Environment' (Get-EnvironmentVariable)
 }
